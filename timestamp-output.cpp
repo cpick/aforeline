@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <algorithm>
 #include <iostream>
 
 namespace {
@@ -42,6 +43,43 @@ struct FdGuard {
     FdGuard& operator=(const FdGuard&) = delete;
     int dFd;
 };
+
+void writeLine(const uint8_t *line, const uint8_t *lineEnd) {
+    char prefix[] = "prefix: ";
+    write(STDOUT_FILENO, prefix, sizeof(prefix) - 1 /* NUL byte */);
+    // TODO return value
+
+    while(line < lineEnd) {
+        auto writeResult = write(STDOUT_FILENO, line, lineEnd - line);
+        if(-1 == writeResult) {
+            std::cerr << "write failed: " << strerror(errno) << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        line += writeResult;
+    }
+
+    char suffix[] = "\n";
+    write(STDOUT_FILENO, suffix, sizeof(suffix) - 1 /* NUL byte */);
+    // TODO return value
+}
+
+void writeLines(const uint8_t *buf, const uint8_t *bufEnd) {
+    while(buf < bufEnd) {
+        auto findResult = std::find(buf, bufEnd, '\n');
+        writeLine(buf, findResult);
+        buf = findResult;
+        if(buf == bufEnd) {
+            uint8_t epilog[] = "[logging: interrupted line]";
+            writeLine(epilog, epilog + sizeof(epilog));
+            break;
+        }
+        ++buf;
+    }
+
+    uint8_t epilog[] = "[logging: finished cleanly]";
+    writeLine(epilog, epilog + sizeof(epilog));
+}
 
 }
 
@@ -86,21 +124,7 @@ int main(int argc, char *argv[]) {
                     return EXIT_SUCCESS;
                 }
 
-                char prefix[] = "prefix: ";
-                write(STDOUT_FILENO, prefix, sizeof(prefix) - 1 /* NUL byte */);
-                // TODO return value
-
-                size_t readBytes = readResult;
-                size_t writtenBytes {};
-                while(writtenBytes < readBytes) {
-                    auto writeResult = write(STDOUT_FILENO, buf + writtenBytes, readBytes - writtenBytes);
-                    if(-1 == writeResult) {
-                        std::cerr << "write failed: " << strerror(errno) << std::endl;
-                        return EXIT_FAILURE;
-                    }
-
-                    writtenBytes += writeResult;
-                }
+                writeLines(buf, buf + readResult);
             }
         }
     }
