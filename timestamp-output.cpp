@@ -94,27 +94,23 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    FdGuard pipeStdoutFdWrite;
-    FdGuard pipeStderrFdWrite;
+    FdGuard pipeFdWrite;
     {
-        FdGuard pipeStdoutFdRead;
-        FdGuard pipeStderrFdRead;
-        FdGuard::pipeOpen(pipeStdoutFdRead, pipeStdoutFdWrite);
-        FdGuard::pipeOpen(pipeStderrFdRead, pipeStderrFdWrite);
+        FdGuard pipeFdRead;
+        FdGuard::pipeOpen(pipeFdRead, pipeFdWrite);
 
         auto pid = fork();
         if(!pid) {
             // child
-            pipeStdoutFdWrite.close();
-            pipeStderrFdWrite.close();
+            pipeFdWrite.close();
             close(STDIN_FILENO);
 
-            auto pipeSize = fcntl(pipeStdoutFdRead, F_GETPIPE_SZ);
+            auto pipeSize = fcntl(pipeFdRead, F_GETPIPE_SZ);
             while(true) {
                 uint8_t buf[pipeSize];
                 // TODO poll on both fds
 
-                auto readResult = read(pipeStdoutFdRead, buf, sizeof(buf));
+                auto readResult = read(pipeFdRead, buf, sizeof(buf));
                 if(-1 == readResult) {
                     std::cerr << "read failed: " << strerror(errno) << std::endl;
                     return EXIT_FAILURE;
@@ -131,17 +127,17 @@ int main(int argc, char *argv[]) {
 
     // redirect stdout and stderr
 
-    if(-1 == dup2(pipeStdoutFdWrite, STDOUT_FILENO)) {
+    if(-1 == dup2(pipeFdWrite, STDOUT_FILENO)) {
         std::cerr << "dup2 stdout failed: " << strerror(errno) << std::endl;
         return EXIT_FAILURE;
     }
-    pipeStdoutFdWrite.close();
 
-    if(-1 == dup2(pipeStderrFdWrite, STDERR_FILENO)) {
+    if(-1 == dup2(pipeFdWrite, STDERR_FILENO)) {
         std::cerr << "dup2 stderr failed: " << strerror(errno) << std::endl;
         return EXIT_FAILURE;
     }
-    pipeStderrFdWrite.close();
+
+    pipeFdWrite.close();
 
     // execute command
     execvp(argv[ARGV_COMMAND], &argv[ARGV_COMMAND]);
