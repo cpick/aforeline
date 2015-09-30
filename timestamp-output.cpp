@@ -116,18 +116,19 @@ template<typename ContinguousIt>
 void writeLine(ContinguousIt line, ContinguousIt lineEnd) {
     {
 #define TIME_SUFFIX ": "
-        char timeBuf[sizeof("yyyy-mm-ddThh:mm:ssZ" TIME_SUFFIX)];
+        std::array<char, sizeof("yyyy-mm-ddThh:mm:ssZ" TIME_SUFFIX)> timeBuf;
 
         auto t = std::time(nullptr);
-        auto timeLength = std::strftime(timeBuf, sizeof(timeBuf), "%FT%TZ" TIME_SUFFIX, std::gmtime(&t));
+        auto timeLength = std::strftime(timeBuf.data(), timeBuf.size(), "%FT%TZ" TIME_SUFFIX, std::gmtime(&t));
 #undef TIME_SUFFIX
 
-        if(!timeLength) {
-            std::cerr << "strftime failed" << std::endl;
-            exit(EXIT_FAILURE);
+        if((timeBuf.size() - 1 /* NUL byte */) != timeLength) {
+            std::stringstream error;
+            error << "strftime failed: " << timeLength;
+            throw std::runtime_error(error.str());
         }
 
-        write(STDOUT_FILENO, timeBuf, timeLength);
+        write(STDOUT_FILENO, timeBuf.data(), timeLength);
         // TODO return value
     }
 
