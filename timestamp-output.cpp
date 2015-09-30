@@ -1,6 +1,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -45,9 +46,22 @@ struct FdGuard {
 };
 
 void writeLine(const uint8_t *line, const uint8_t *lineEnd) {
-    char prefix[] = "prefix: ";
-    write(STDOUT_FILENO, prefix, sizeof(prefix) - 1 /* NUL byte */);
-    // TODO return value
+    {
+#define TIME_SUFFIX ": "
+        char timeBuf[sizeof("yyyy-mm-ddThh:mm:ssZ" TIME_SUFFIX)];
+
+        auto t = std::time(nullptr);
+        auto timeLength = std::strftime(timeBuf, sizeof(timeBuf), "%FT%TZ" TIME_SUFFIX, std::gmtime(&t));
+#undef TIME_SUFFIX
+
+        if(!timeLength) {
+            std::cerr << "strftime failed" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        write(STDOUT_FILENO, timeBuf, timeLength);
+        // TODO return value
+    }
 
     while(line < lineEnd) {
         auto writeResult = write(STDOUT_FILENO, line, lineEnd - line);
