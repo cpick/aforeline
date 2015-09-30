@@ -8,44 +8,112 @@
 
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 
 namespace {
 
-struct FdGuard {
-    FdGuard() : dFd(-1) {}
-    ~FdGuard() { close(); }
-    operator int() const { return dFd; }
+// takes ownership of fd
+class Endpoint {
+public:
+    explicit Endpoint(int &fd) : dFd(fd) { fd = -1; }
+    Endpoint(Endpoint &&old) : dFd(old.dFd) { old.dFd = -1; };
+    ~Endpoint() { if(-1 != dFd) close(dFd); }
 
-    int close() {
-        auto closeResult = ::close(dFd);
-        dFd = -1;
-        return closeResult;
-    }
+private:
+    Endpoint(const Endpoint&) = delete;
+    Endpoint& operator=(const Endpoint&) = delete;
 
-    static void pipeOpen(FdGuard &read, FdGuard &write) {
-        enum {
-            PIPE_FD_READ = 0
-          , PIPE_FD_WRITE
-          , PIPE_FD_NUM
-        };
-        int pipeFd[PIPE_FD_NUM];
-
-        if(pipe(pipeFd)) {
-            std::cerr << "pipe failed: " << strerror(errno) << std::endl;
-            exit(EXIT_FAILURE);
-        }
-
-        read.dFd = pipeFd[PIPE_FD_READ];
-        write.dFd = pipeFd[PIPE_FD_WRITE];
-    }
-
-    private:
-    FdGuard(const FdGuard&) = delete;
-    FdGuard& operator=(const FdGuard&) = delete;
+protected:
     int dFd;
 };
 
-void writeLine(const uint8_t *line, const uint8_t *lineEnd) {
+class Reader: public Endpoint {
+    using Endpoint::Endpoint;
+
+public:
+    typedef std::vector<uint8_t> Data;
+    Data read() {
+        auto pipeSize = fcntl(dFd, F_GETPIPE_SZ);
+        if(-1 == pipeSize) {
+            std::stringstream error;
+            error << "fcntl F_GETPIPE_SZ failed: " << strerror(errno);
+            throw std::runtime_error(error.str());
+        }
+
+        Data data(pipeSize);
+
+        auto readResult = ::read(dFd, data.data(), data.size());
+        if(-1 == readResult) {
+            std::stringstream error;
+            error << "read failed: " << strerror(errno);
+            throw std::runtime_error(error.str());
+        }
+
+        data.resize(readResult);
+        return data;
+    }
+};
+
+class Writer: public Endpoint {
+    using Endpoint::Endpoint;
+
+public:
+    void dup2(int fdNew) {
+        if(-1 == ::dup2(dFd, fdNew)) {
+            std::stringstream error;
+            error << "dup2 to new fd: " << fdNew << " failed: " << strerror(errno);
+            throw std::runtime_error(error.str());
+        }
+    }
+};
+
+class Pipe {
+public:
+    Pipe() {
+        if(pipe(dFds.data())) {
+            std::stringstream error;
+            error << "pipe failed: " << strerror(errno);
+            throw std::runtime_error(error.str());
+        }
+    }
+
+    ~Pipe() { close(); }
+
+    Reader useAsReader() {
+        Reader reader(dFds[PIPE_FD_READ]);
+        close();
+        return reader;
+    }
+
+    Writer useAsWriter() {
+        Writer writer(dFds[PIPE_FD_WRITE]);
+        close();
+        return writer;
+    }
+
+private:
+    // non-copyable
+    Pipe(const Pipe&) = delete;
+    Pipe& operator=(const Pipe&) = delete;
+
+    void close() {
+        for(auto &fd: dFds) {
+            if(-1 == fd) continue;
+            ::close(fd); // TODO do anthing with return value?
+            fd = -1;
+        }
+    }
+
+    enum {
+        PIPE_FD_READ = 0
+      , PIPE_FD_WRITE
+      , PIPE_FD_NUM
+    };
+    std::array<int, PIPE_FD_NUM> dFds;
+};
+
+template<typename ContinguousIt>
+void writeLine(ContinguousIt line, ContinguousIt lineEnd) {
     {
 #define TIME_SUFFIX ": "
         char timeBuf[sizeof("yyyy-mm-ddThh:mm:ssZ" TIME_SUFFIX)];
@@ -64,7 +132,7 @@ void writeLine(const uint8_t *line, const uint8_t *lineEnd) {
     }
 
     while(line < lineEnd) {
-        auto writeResult = write(STDOUT_FILENO, line, lineEnd - line);
+        auto writeResult = write(STDOUT_FILENO, &*line, std::distance(line, lineEnd));
         if(-1 == writeResult) {
             std::cerr << "write failed: " << strerror(errno) << std::endl;
             exit(EXIT_FAILURE);
@@ -78,7 +146,8 @@ void writeLine(const uint8_t *line, const uint8_t *lineEnd) {
     // TODO return value
 }
 
-void writeLines(const uint8_t *buf, const uint8_t *bufEnd) {
+template<typename ContinguousIt>
+void writeLines(ContinguousIt buf, ContinguousIt bufEnd) {
     while(buf < bufEnd) {
         auto findResult = std::find(buf, bufEnd, '\n');
         writeLine(buf, findResult);
@@ -108,50 +177,26 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    FdGuard pipeFdWrite;
-    {
-        FdGuard pipeFdRead;
-        FdGuard::pipeOpen(pipeFdRead, pipeFdWrite);
+    Pipe pipe;
 
-        auto pid = fork();
-        if(!pid) {
-            // child
-            pipeFdWrite.close();
-            close(STDIN_FILENO);
+    if(!fork()) { // child
+        auto reader = pipe.useAsReader();
+        close(STDIN_FILENO);
 
-            auto pipeSize = fcntl(pipeFdRead, F_GETPIPE_SZ);
-            while(true) {
-                uint8_t buf[pipeSize];
-                // TODO poll on both fds
-
-                auto readResult = read(pipeFdRead, buf, sizeof(buf));
-                if(-1 == readResult) {
-                    std::cerr << "read failed: " << strerror(errno) << std::endl;
-                    return EXIT_FAILURE;
-                }
-
-                if(!readResult) {
-                    return EXIT_SUCCESS;
-                }
-
-                writeLines(buf, buf + readResult);
-            }
+        while(true) {
+            auto data = reader.read();
+            if(data.empty()) return EXIT_SUCCESS;
+            writeLines(std::begin(data), std::end(data));
         }
     }
 
     // redirect stdout and stderr
-
-    if(-1 == dup2(pipeFdWrite, STDOUT_FILENO)) {
-        std::cerr << "dup2 stdout failed: " << strerror(errno) << std::endl;
-        return EXIT_FAILURE;
+    {
+        auto writer = pipe.useAsWriter();
+        for(const auto fd: { STDOUT_FILENO, STDERR_FILENO }) {
+            writer.dup2(fd);
+        }
     }
-
-    if(-1 == dup2(pipeFdWrite, STDERR_FILENO)) {
-        std::cerr << "dup2 stderr failed: " << strerror(errno) << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    pipeFdWrite.close();
 
     // execute command
     execvp(argv[ARGV_COMMAND], &argv[ARGV_COMMAND]);
