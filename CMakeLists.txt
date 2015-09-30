@@ -22,6 +22,11 @@ add_executable(${PROJECT_NAME}
     "timestamp-output.cpp"
     )
 
+target_compile_options(${PROJECT_NAME}
+    PUBLIC
+    "-std=c++11"
+    )
+
 install(
     TARGETS ${PROJECT_NAME}
     DESTINATION "bin"
