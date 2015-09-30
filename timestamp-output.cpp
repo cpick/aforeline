@@ -112,25 +112,11 @@ private:
     std::array<int, PIPE_FD_NUM> dFds;
 };
 
-template<typename ContinguousIt>
-void writeLine(ContinguousIt line, ContinguousIt lineEnd) {
-    {
-#define TIME_SUFFIX ": "
-        std::array<char, sizeof("yyyy-mm-ddThh:mm:ssZ" TIME_SUFFIX)> timeBuf;
-
-        auto t = std::time(nullptr);
-        auto timeLength = std::strftime(timeBuf.data(), timeBuf.size(), "%FT%TZ" TIME_SUFFIX, std::gmtime(&t));
-#undef TIME_SUFFIX
-
-        if((timeBuf.size() - 1 /* NUL byte */) != timeLength) {
-            std::stringstream error;
-            error << "strftime failed: " << timeLength;
-            throw std::runtime_error(error.str());
-        }
-
-        write(STDOUT_FILENO, timeBuf.data(), timeLength);
-        // TODO return value
-    }
+template<typename ContinguousIt1, typename ContinguousIt2>
+void writeLine(ContinguousIt1 prefix, ContinguousIt1 prefixEnd,
+        ContinguousIt2 line, ContinguousIt2 lineEnd) {
+    write(STDOUT_FILENO, &*prefix, std::distance(prefix, prefixEnd));
+    // TODO return value
 
     while(line < lineEnd) {
         auto writeResult = write(STDOUT_FILENO, &*line, std::distance(line, lineEnd));
@@ -142,27 +128,44 @@ void writeLine(ContinguousIt line, ContinguousIt lineEnd) {
         line += writeResult;
     }
 
-    char suffix[] = "\n";
-    write(STDOUT_FILENO, suffix, sizeof(suffix) - 1 /* NUL byte */);
+    static char SUFFIX[] = "\n";
+    write(STDOUT_FILENO, SUFFIX, sizeof(SUFFIX) - 1 /* NUL byte */);
     // TODO return value
 }
 
 template<typename ContinguousIt>
 void writeLines(ContinguousIt buf, ContinguousIt bufEnd) {
+    // make note of the timestamp once
+#define TIME_SUFFIX ": "
+    std::array<char, sizeof("yyyy-mm-ddThh:mm:ssZ" TIME_SUFFIX)> timeBuf;
+    {
+        auto t = std::time(nullptr);
+        auto timeLength = std::strftime(timeBuf.data(), timeBuf.size(), "%FT%TZ" TIME_SUFFIX, std::gmtime(&t));
+#undef TIME_SUFFIX
+
+        if((timeBuf.size() - 1 /* NUL byte */) != timeLength) {
+            std::stringstream error;
+            error << "strftime failed: " << timeLength;
+            throw std::runtime_error(error.str());
+        }
+    }
+    auto timeBufBegin = std::begin(timeBuf);
+    auto timeBufEnd = std::end(timeBuf);
+
     while(buf < bufEnd) {
         auto findResult = std::find(buf, bufEnd, '\n');
-        writeLine(buf, findResult);
+        writeLine(timeBufBegin, timeBufEnd, buf, findResult);
         buf = findResult;
         if(buf == bufEnd) {
             uint8_t epilog[] = "[logging: interrupted line]";
-            writeLine(epilog, epilog + sizeof(epilog));
+            writeLine(timeBufBegin, timeBufEnd, std::begin(epilog), std::end(epilog));
             break;
         }
         ++buf;
     }
 
     uint8_t epilog[] = "[logging: finished cleanly]";
-    writeLine(epilog, epilog + sizeof(epilog));
+    writeLine(timeBufBegin, timeBufEnd, std::begin(epilog), std::end(epilog));
 }
 
 }
