@@ -1,4 +1,4 @@
-project(timestamp-output
+project(aforeline
     "CXX"
     )
 
@@ -19,7 +19,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS
 
 
 add_executable(${PROJECT_NAME}
-    "timestamp-output.cpp"
+    "aforeline.cpp"
     )
 
 target_compile_options(${PROJECT_NAME}
