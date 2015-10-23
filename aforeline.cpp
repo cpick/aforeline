@@ -5,6 +5,7 @@
 
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #include <algorithm>
 #include <iostream>
@@ -124,6 +125,8 @@ void writeLine(ContinguousIt1 prefix, ContinguousIt1 prefixEnd,
 
     while(line < lineEnd) {
         auto writeResult = write(STDOUT_FILENO, &*line, std::distance(line, lineEnd));
+        // TODO what to do on EPIPE?
+        // TODO what to do on EINTR?
         if(-1 == writeResult) {
             std::stringstream error;
             error << "write failed: " << errno << " " << strerror(errno);
@@ -170,6 +173,30 @@ void writeLines(ContinguousIt buf, ContinguousIt bufEnd) {
     }
 }
 
+void signalsIgnore()
+{
+    struct sigaction sigaction_new = {};
+    sigaction_new.sa_flags = SA_RESETHAND;
+    sigaction_new.sa_handler = SIG_IGN;
+
+    for(const auto signal: {
+            SIGHUP
+          , SIGINT
+          , SIGQUIT
+          , SIGPIPE
+          , SIGTERM
+          , SIGUSR1
+          , SIGUSR2
+            }) {
+        if(sigaction(signal, &sigaction_new, NULL /* sigactions_orig */))
+        {
+            std::stringstream error;
+            error << "sigaction signal: " << signal << " " << strsignal(signal) << " failed: " << errno << " " << strerror(errno);
+            throw std::runtime_error(error.str());
+        }
+    }
+}
+
 }
 
 int main(int argc, char *argv[]) {
@@ -186,6 +213,8 @@ int main(int argc, char *argv[]) {
     Pipe pipe;
 
     if(!fork()) { // child
+        signalsIgnore();
+
         auto reader = pipe.useAsReader();
         close(STDIN_FILENO);
 
