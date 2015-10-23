@@ -36,7 +36,7 @@ public:
         auto pipeSize = fcntl(dFd, F_GETPIPE_SZ);
         if(-1 == pipeSize) {
             std::stringstream error;
-            error << "fcntl F_GETPIPE_SZ failed: " << strerror(errno);
+            error << "fcntl F_GETPIPE_SZ failed: " << errno << " " << strerror(errno);
             throw std::runtime_error(error.str());
         }
 
@@ -48,7 +48,7 @@ public:
                 if(EINTR == errno) continue;
 
                 std::stringstream error;
-                error << "read failed: " << strerror(errno);
+                error << "read failed: " << errno << " " << strerror(errno);
                 throw std::runtime_error(error.str());
             }
 
@@ -65,7 +65,7 @@ public:
     void dup2(int fdNew) {
         if(-1 == ::dup2(dFd, fdNew)) {
             std::stringstream error;
-            error << "dup2 to new fd: " << fdNew << " failed: " << strerror(errno);
+            error << "dup2 to new fd: " << fdNew << " failed: " << errno << " " << strerror(errno);
             throw std::runtime_error(error.str());
         }
     }
@@ -76,7 +76,7 @@ public:
     Pipe() {
         if(pipe(dFds.data())) {
             std::stringstream error;
-            error << "pipe failed: " << strerror(errno);
+            error << "pipe failed: " << errno << " " << strerror(errno);
             throw std::runtime_error(error.str());
         }
     }
@@ -125,8 +125,9 @@ void writeLine(ContinguousIt1 prefix, ContinguousIt1 prefixEnd,
     while(line < lineEnd) {
         auto writeResult = write(STDOUT_FILENO, &*line, std::distance(line, lineEnd));
         if(-1 == writeResult) {
-            std::cerr << "write failed: " << strerror(errno) << std::endl;
-            exit(EXIT_FAILURE);
+            std::stringstream error;
+            error << "write failed: " << errno << " " << strerror(errno);
+            throw std::runtime_error(error.str());
         }
 
         line += writeResult;
@@ -209,6 +210,6 @@ int main(int argc, char *argv[]) {
 
     // execute command
     execvp(argv[ARGV_COMMAND], &argv[ARGV_COMMAND]);
-    std::cerr << "execvp failed: " << strerror(errno) << std::endl;
+    std::cerr << "execvp failed: " << errno << " " << strerror(errno) << std::endl;
     return EXIT_FAILURE;
 }
