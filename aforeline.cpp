@@ -167,9 +167,6 @@ void writeLines(ContinguousIt buf, ContinguousIt bufEnd) {
         }
         ++buf;
     }
-
-    uint8_t epilog[] = "[logging: finished cleanly]";
-    writeLine(timeBufBegin, timeBufEnd, std::begin(epilog), std::end(epilog));
 }
 
 }
@@ -193,7 +190,11 @@ int main(int argc, char *argv[]) {
 
         while(true) {
             auto data = reader.read();
-            if(data.empty()) return EXIT_SUCCESS;
+            if(data.empty()) {
+                uint8_t epilog[] = "[logging: finished cleanly]\n";
+                writeLines(std::begin(epilog), std::end(epilog));
+                return EXIT_SUCCESS;
+            }
             writeLines(std::begin(data), std::end(data));
         }
     }
