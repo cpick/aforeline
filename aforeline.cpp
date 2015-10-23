@@ -42,15 +42,19 @@ public:
 
         Data data(pipeSize);
 
-        auto readResult = ::read(dFd, data.data(), data.size());
-        if(-1 == readResult) {
-            std::stringstream error;
-            error << "read failed: " << strerror(errno);
-            throw std::runtime_error(error.str());
-        }
+        while(true) {
+            auto readResult = ::read(dFd, data.data(), data.size());
+            if(-1 == readResult) {
+                if(EINTR == errno) continue;
 
-        data.resize(readResult);
-        return data;
+                std::stringstream error;
+                error << "read failed: " << strerror(errno);
+                throw std::runtime_error(error.str());
+            }
+
+            data.resize(readResult);
+            return data;
+        }
     }
 };
 
