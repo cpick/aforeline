@@ -154,15 +154,15 @@ void writeLines(ContinguousIt buf, ContinguousIt bufEnd) {
         }
     }
     auto timeBufBegin = std::begin(timeBuf);
-    auto timeBufEnd = std::end(timeBuf);
+    auto timeBufEnd = std::end(timeBuf) - 1 /* NUL byte */;
 
     while(buf < bufEnd) {
         auto findResult = std::find(buf, bufEnd, '\n');
         writeLine(timeBufBegin, timeBufEnd, buf, findResult);
         buf = findResult;
         if(buf == bufEnd) {
-            uint8_t epilog[] = "[logging: interrupted line]";
-            writeLine(timeBufBegin, timeBufEnd, std::begin(epilog), std::end(epilog));
+            const uint8_t epilog[] = "[logging: interrupted line]";
+            writeLine(timeBufBegin, timeBufEnd, std::begin(epilog), std::end(epilog) - 1 /* NUL byte */);
             break;
         }
         ++buf;
@@ -191,8 +191,8 @@ int main(int argc, char *argv[]) {
         while(true) {
             auto data = reader.read();
             if(data.empty()) {
-                uint8_t epilog[] = "[logging: finished cleanly]\n";
-                writeLines(std::begin(epilog), std::end(epilog));
+                const uint8_t epilog[] = "[logging: finished cleanly]\n";
+                writeLines(std::begin(epilog), std::end(epilog) - 1 /* NUL byte */);
                 return EXIT_SUCCESS;
             }
             writeLines(std::begin(data), std::end(data));
