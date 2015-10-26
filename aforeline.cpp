@@ -117,14 +117,10 @@ private:
     std::array<int, PIPE_FD_NUM> dFds;
 };
 
-template<typename ContinguousIt1, typename ContinguousIt2>
-void writeLine(ContinguousIt1 prefix, ContinguousIt1 prefixEnd,
-        ContinguousIt2 line, ContinguousIt2 lineEnd) {
-    write(STDOUT_FILENO, &*prefix, std::distance(prefix, prefixEnd));
-    // TODO return value
-
-    while(line < lineEnd) {
-        auto writeResult = write(STDOUT_FILENO, &*line, std::distance(line, lineEnd));
+template<typename ContinguousIt>
+void writeRetry(ContinguousIt buf, ContinguousIt bufEnd) {
+    while(buf < bufEnd) {
+        auto writeResult = write(STDOUT_FILENO, &*buf, std::distance(buf, bufEnd));
         if(-1 == writeResult) {
             if(EINTR == errno) continue;
 
@@ -134,12 +130,19 @@ void writeLine(ContinguousIt1 prefix, ContinguousIt1 prefixEnd,
             throw std::runtime_error(error.str());
         }
 
-        line += writeResult;
+        buf += writeResult;
     }
+}
+
+template<typename ContinguousIt1, typename ContinguousIt2>
+void writeLine(ContinguousIt1 prefix, ContinguousIt1 prefixEnd,
+        ContinguousIt2 line, ContinguousIt2 lineEnd) {
+    writeRetry(prefix, prefixEnd);
+
+    writeRetry(line, lineEnd);
 
     static char SUFFIX[] = "\n";
-    write(STDOUT_FILENO, SUFFIX, sizeof(SUFFIX) - 1 /* NUL byte */);
-    // TODO return value
+    writeRetry(SUFFIX, SUFFIX + (sizeof(SUFFIX) - 1 /* NUL byte */));
 }
 
 template<typename ContinguousIt>
