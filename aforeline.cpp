@@ -125,9 +125,10 @@ void writeLine(ContinguousIt1 prefix, ContinguousIt1 prefixEnd,
 
     while(line < lineEnd) {
         auto writeResult = write(STDOUT_FILENO, &*line, std::distance(line, lineEnd));
-        // TODO what to do on EPIPE?
-        // TODO what to do on EINTR?
         if(-1 == writeResult) {
+            if(EINTR == errno) continue;
+
+            // TODO does it make sense to handle EPIPE differently?
             std::stringstream error;
             error << "write failed: " << errno << " " << strerror(errno);
             throw std::runtime_error(error.str());
