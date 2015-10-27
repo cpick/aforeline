@@ -1,0 +1,15 @@
+Source: aforeline
+Section: utils
+Priority: optional
+Maintainer: Chris Pick <chris@chrispick.com>
+Build-Depends: debhelper (>= 8.0.0), cmake
+Standards-Version: 3.9.4
+Homepage: https://github.com/cpick/aforeline
+#Vcs-Git: git@github.com:cpick/aforeline.git
+#Vcs-Browser: https://github.com/cpick/aforeline
+
+Package: aforeline
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Prepends a date+timestamp to command's output
+ Executes another process prepending a date+timestamp to each line of its output.
