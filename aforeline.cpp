@@ -136,17 +136,14 @@ void writeRetry(ContinguousIt buf, ContinguousIt bufEnd) {
 
 template<typename ContinguousIt1, typename ContinguousIt2>
 void writeLine(ContinguousIt1 prefix, ContinguousIt1 prefixEnd,
-        ContinguousIt2 line, ContinguousIt2 lineEnd) {
-    writeRetry(prefix, prefixEnd);
+        ContinguousIt2 line, ContinguousIt2 lineEnd, bool continuedLine) {
+    if(!continuedLine) writeRetry(prefix, prefixEnd);
 
     writeRetry(line, lineEnd);
-
-    static char SUFFIX[] = "\n";
-    writeRetry(SUFFIX, SUFFIX + (sizeof(SUFFIX) - 1 /* NUL byte */));
 }
 
 template<typename ContinguousIt>
-void writeLines(ContinguousIt buf, ContinguousIt bufEnd) {
+bool writeLines(ContinguousIt buf, ContinguousIt bufEnd, bool continuedLine = false) {
     // make note of the timestamp once
 #define TIME_SUFFIX ": "
     std::array<char, sizeof("yyyy-mm-ddThh:mm:ssZ" TIME_SUFFIX)> timeBuf;
@@ -164,17 +161,18 @@ void writeLines(ContinguousIt buf, ContinguousIt bufEnd) {
     auto timeBufBegin = std::begin(timeBuf);
     auto timeBufEnd = std::end(timeBuf) - 1 /* NUL byte */;
 
+    auto newlineTerminated = false;
     while(buf < bufEnd) {
         auto findResult = std::find(buf, bufEnd, '\n');
-        writeLine(timeBufBegin, timeBufEnd, buf, findResult);
+        newlineTerminated = findResult != bufEnd;
+        if(newlineTerminated) ++findResult;
+
+        writeLine(timeBufBegin, timeBufEnd, buf, findResult, continuedLine);
         buf = findResult;
-        if(buf == bufEnd) {
-            const uint8_t epilog[] = "[logging: interrupted line]";
-            writeLine(timeBufBegin, timeBufEnd, std::begin(epilog), std::end(epilog) - 1 /* NUL byte */);
-            break;
-        }
-        ++buf;
+        continuedLine = false;
     }
+
+    return !newlineTerminated;
 }
 
 void signalsIgnore()
@@ -237,14 +235,22 @@ int main(int argc, char *argv[]) {
 
         writeStatusLine("started");
 
+        auto continuedLine = false;
         while(true) {
             auto data = reader.read();
             if(data.empty()) {
+                if(continuedLine) {
+                    static const uint8_t INCOMPLETE[] = " [logging: incomplete line]\n";
+                    writeRetry(std::begin(INCOMPLETE), std::end(INCOMPLETE) - 1 /* NUL byte */);
+                }
+
                 writeStatusLine("finished cleanly");
                 return EXIT_SUCCESS;
             }
-            writeLines(std::begin(data), std::end(data));
+            continuedLine = writeLines(std::begin(data), std::end(data), continuedLine);
         }
+
+        return EXIT_FAILURE;    // unreachable
     }
 
     // redirect stdout and stderr
