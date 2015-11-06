@@ -201,6 +201,19 @@ void signalsIgnore()
     }
 }
 
+void writeStatusLine(const char status[])
+{
+    // latch these values as early as possible
+    // hopefully catching our original parent while it's alive before we're a child of init
+    static const auto PARENT_PID = getppid();
+    static const auto PID = getpid();
+
+    std::ostringstream lineStream;
+    lineStream << "[logging: " << status << " from pid: " << PARENT_PID << " logged by pid: " << PID << "]\n";
+    auto line = lineStream.str();
+    writeLines(std::begin(line), std::end(line));
+}
+
 }
 
 int main(int argc, char *argv[]) {
@@ -222,11 +235,12 @@ int main(int argc, char *argv[]) {
         auto reader = pipe.useAsReader();
         close(STDIN_FILENO);
 
+        writeStatusLine("started");
+
         while(true) {
             auto data = reader.read();
             if(data.empty()) {
-                const uint8_t epilog[] = "[logging: finished cleanly]\n";
-                writeLines(std::begin(epilog), std::end(epilog) - 1 /* NUL byte */);
+                writeStatusLine("finished cleanly");
                 return EXIT_SUCCESS;
             }
             writeLines(std::begin(data), std::end(data));
