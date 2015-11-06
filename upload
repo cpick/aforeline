@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e
+set -u
+
+if [ $# -ne 0 ]; then
+    echo >&2 "Usage: $0"
+    exit 1
+fi
+
+. package_vars.sh
+
+debsign "$CHANGES_FILE"
+dput "ppa:$(whoami)/${PACKAGE_NAME}" "${CHANGES_FILE}"

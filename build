@@ -1,0 +1,49 @@
+#!/bin/sh
+
+set -e
+set -u
+
+if [ $# -ne 0 ]; then
+    echo >&2 "Usage: $0"
+    exit 1
+fi
+
+# dependencies
+sudo apt-get update
+sudo apt-get install packaging-dev equivs gitpkg
+
+# find source directory and load variables
+
+VARS_FILE='package_vars.sh'
+set -- . /vagrant
+while :; do
+    if [ "$#" -le 0 ]; then
+        echo >&2 "Cannot find: '$VARS_FILE'"
+        exit 1
+    fi
+
+    dir="$1"
+    shift
+
+    [ -d "$dir" ] || continue
+    cd "$dir"
+    [ -f "$VARS_FILE" ] && break
+done
+
+. "$VARS_FILE"
+
+# export source
+
+git config --global gitpkg.create-fake-orig true
+DEB_DIR="$HOME" gitpkg HEAD
+
+# build
+
+cd "~/${PACKAGE_NAME}/${PACKAGE_DIR}/"
+
+mk-build-deps -irs sudo
+dpkg-buildpackage -us -uc
+dpkg-genchanges -S >"$CHANGES_FILE"
+
+# save results
+cp "../${PACKAGE_FILE_PREFIX}"* /vagrant
