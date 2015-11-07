@@ -1,3 +1,10 @@
+aforeline (0.2.0-0ubuntu0ppa1) trusty; urgency=low
+
+  * Note the start of logging.
+  * Remove "interrupted line" trace except for at the end of the process.
+
+ -- Chris Pick <chris@chrispick.com>  Fri, 06 Nov 2015 18:59:48 -0500
+
 aforeline (0.1.0-0ubuntu0ppa1) trusty; urgency=low
 
   * Initial release.
