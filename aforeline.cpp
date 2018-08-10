@@ -8,8 +8,10 @@
 #include <signal.h>
 
 #include <algorithm>
+#include <array>
 #include <iostream>
 #include <sstream>
+#include <vector>
 
 namespace {
 
