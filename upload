@@ -8,7 +8,7 @@ if [ $# -ne 0 ]; then
     exit 1
 fi
 
-. package_vars.sh
+. ./package_vars.sh
 
 debsign "$CHANGES_FILE"
 dput "ppa:$(whoami)/${PACKAGE_NAME}" "${CHANGES_FILE}"

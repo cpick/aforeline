@@ -10,7 +10,7 @@ fi
 
 # dependencies
 sudo apt-get update
-sudo apt-get install packaging-dev equivs gitpkg
+sudo apt-get install -y packaging-dev equivs gitpkg
 
 # find source directory and load variables
 
@@ -30,20 +30,20 @@ while :; do
     [ -f "$VARS_FILE" ] && break
 done
 
-. "$VARS_FILE"
+. "./${VARS_FILE}"
 
 # export source
 
 git config --global gitpkg.create-fake-orig true
-DEB_DIR="$HOME" gitpkg HEAD
+gitpkg "--deb-dir=${HOME}" --keep-unpacked-source=true HEAD
 
 # build
 
-cd "~/${PACKAGE_NAME}/${PACKAGE_DIR}/"
+cd "${HOME}/${PACKAGE_NAME}/${PACKAGE_DIR}/"
 
 mk-build-deps -irs sudo
 dpkg-buildpackage -us -uc
-dpkg-genchanges -S >"$CHANGES_FILE"
+dpkg-genchanges -S >"../${CHANGES_FILE}"
 
 # save results
 cp "../${PACKAGE_FILE_PREFIX}"* /vagrant
