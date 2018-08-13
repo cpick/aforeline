@@ -1,0 +1,43 @@
+# Contributor: Chris Pick <chris@chrispick.com>
+# Maintainer: Chris Pick <chris@chrispick.com>
+pkgname=aforeline
+pkgver=0.3.0
+pkgrel=0
+pkgdesc="Prepend timestamps to a command's output"
+url="https://github.com/cpick/$pkgname"
+arch="all"
+license="apache2"
+depends="libstdc++"
+makedepends="cmake"
+install=""
+subpackages=""
+source="$pkgname-$pkgver.tar.gz::https://github.com/cpick/$pkgname/archive/v$pkgver.tar.gz"
+builddir="$srcdir/$pkgname-$pkgver"
+sha512sums="571cfe26e12b94b1022922023c5b5bfb636316226963d465b9f6768c2d5e42e002c6f85157902c4a35155cab8f59a7de2e87d10cfacc28fa24fa7ccec4bc8522  aforeline-0.3.0.tar.gz"
+
+build() {
+	cd "$builddir"
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	cmake \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+		-DCMAKE_C_FLAGS="$CFLAGS" \
+		${CMAKE_CROSSOPTS}
+	make
+}
+
+check() {
+	cd "$builddir"
+	# make check
+	true
+}
+
+package() {
+	cd "$builddir"
+	make DESTDIR="$pkgdir" install
+}
