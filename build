@@ -46,4 +46,4 @@ dpkg-buildpackage -us -uc
 dpkg-genchanges -S >"../${CHANGES_FILE}"
 
 # save results
-cp "../${PACKAGE_FILE_PREFIX}"* /vagrant
+cp "../${PACKAGE_ORIG_FILE}" "../${PACKAGE_FILE_PREFIX}"* /vagrant
