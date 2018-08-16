@@ -10,5 +10,8 @@ fi
 
 . ./package_vars.sh
 
+# https://bugs.launchpad.net/launchpad/+bug/1699763
+sed -i -e '/buildinfo/d' "$CHANGES_FILE"
+
 debsign "$CHANGES_FILE"
 dput "ppa:$(whoami)/${PACKAGE_NAME}" "${CHANGES_FILE}"
